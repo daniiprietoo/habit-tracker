@@ -9,15 +9,18 @@ from PyQt5.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QDialog,
-    QLabel,
     QLineEdit,
     QFormLayout,
     QMessageBox,
     QHeaderView,
+    QLabel,
+    QCalendarWidget,
+    QComboBox,
+    QSpinBox,
+    QFrame,
 )
-
-from PyQt5.QtGui import QFont
-
+from PyQt5.QtGui import QFont, QIcon, QColor
+from PyQt5.QtCore import Qt, QSize
 from db_operations import (
     fetch_all_habits,
     insert_habit,
@@ -31,88 +34,59 @@ class HabitTracker(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Habit Tracker")
-        self.setMinimumSize(800, 600)
+        self.setWindowTitle("✨ Habit Tracker")
+        self.setMinimumSize(900, 700)
+
+        self.colors = {
+            'primary': '#2962ff',
+            'secondary': '#455a64',
+            'danger': '#f44336',
+            'success': '#4caf50',
+            'background': '#f5f5f5',
+            'surface': '#ffffff',
+            'text': '#263238' 
+        }
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
+        self.central_widget.setStyleSheet(f"background-color: {self.colors['background']}")
+
+        main_layout = QVBoxLayout(self.central_widget)
+        main_layout.setSpacing(24)
+        main_layout.setContentsMargins(32, 32, 32, 32)
+
+        header_layout = QHBoxLayout()
+        header_label = QLabel("My Habits")
+        header_label.setStyleSheet(f"""
+            QLabel {{
+                color: {self.colors['text']};
+                font-size: 24px;
+                font-weight: bold;
+            }}
+        """)
+        header_layout.addWidget(header_label)
+        header_layout.addStretch()
+        main_layout.addLayout(header_layout)
+
+
+        stats_layout = QHBoxLayout()
+        self.create_stat_card("Total Habits", "0", stats_layout)
+        self.create_stat_card("Active Streaks", "0", stats_layout)
+        self.create_stat_card("Completed Today", "0", stats_layout)
+        main_layout.addLayout(stats_layout)
+
 
         self.habit_table = QTableWidget()
-        self.habit_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                gridline-color: #d0d0d0;
-                border: 1px solid #c0c0c0;
-                border-radius: 4px;
-            }
-            QHeaderView::section {
-                background-color: #2c3e50;
-                color: white;
-                padding: 8px;
-                border: none;
-                font-weight: bold;
-            }
-            QTableWidget::item {
-                padding: 10px;
-                border: none;
-                color: black
-            }
-        """)
-        self.habit_table.setAlternatingRowColors(True)
-        self.habit_table.horizontalHeader().setStretchLastSection(True)
-        self.habit_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Interactive
-        )
-        self.habit_table.verticalHeader().setVisible(False)
-        self.habit_table.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-
-        self.habit_table.setColumnCount(4)
-        self.habit_table.setHorizontalHeaderLabels(
-            ["ID", "Name", "Frequency", "Goal"]
-        )
-        self.layout.addWidget(self.habit_table)
+        self.setup_table()
+        main_layout.addWidget(self.habit_table)
 
         button_layout = QHBoxLayout()
-        self.add_habit_button = QPushButton("Add Habit")
-        self.remove_habit_button = QPushButton("Remove Habit")
-        self.edit_habit_button = QPushButton("Edit Habit")
-        button_style = """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #2070a9;
-            }
-        """
-        self.add_habit_button.setStyleSheet(button_style)
-        self.edit_habit_button.setStyleSheet(button_style)
-        self.remove_habit_button.setStyleSheet(
-            button_style.replace("#3498db", "#e74c3c")
-        )
-
-        button_layout.addWidget(self.add_habit_button)
-        button_layout.addWidget(self.edit_habit_button)
-        button_layout.addWidget(self.remove_habit_button)
-        self.layout.addLayout(button_layout)
-
-        self.layout.setSpacing(20)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        button_layout.setSpacing(10)
+        self.setup_buttons(button_layout)
+        main_layout.addLayout(button_layout)
 
         app_font = QFont("Segoe UI", 10)
         self.setFont(app_font)
+    
 
         self.add_habit_button.clicked.connect(self.open_add_habit_dialog)
         self.remove_habit_button.clicked.connect(self.delete_selected_habit)
@@ -145,7 +119,7 @@ class HabitTracker(QMainWindow):
         habit_id = self.habit_table.item(selected_row, 0).text()
         delete_habit(habit_id)
         self.load_habits()
-    
+
     def open_edit_habit_dialog(self):
         selected_row = self.habit_table.currentRow()
         if selected_row == -1:
@@ -156,6 +130,92 @@ class HabitTracker(QMainWindow):
         dialog.exec_()
         self.load_habits()
 
+    def create_stat_card(self, title, value, parent_layout):
+        card = QFrame()
+        card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.colors['surface']};
+                border-radius: 10px;
+                padding: 16px;
+                margin: 8px;
+            }}
+        """)
+
+        card_layout = QVBoxLayout(card)
+        title_label = QLabel(title)
+        title_label.setStyleSheet("color: #757575; font-size: 14px;")
+        value_label = QLabel(value)
+        value_label.setStyleSheet("color: #212121; font-size: 24px; font-weight: bold;")
+        
+        card_layout.addWidget(title_label)
+        card_layout.addWidget(value_label)
+        parent_layout.addWidget(card) 
+
+    def setup_table(self):
+        self.habit_table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {self.colors['surface']};
+                gridline-color: #e0e0e0;
+                border: none;
+                border-radius: 8px;
+            }}
+            QHeaderView::section {{
+                background-color: {self.colors['surface']};
+                color: {self.colors['text']};
+                padding: 12px;
+                border: none;
+                font-weight: bold;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+            QTableWidget::item {{
+                padding: 12px;
+                border-bottom: 1px solid #f0f0f0;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {self.colors['primary'] + '22'};
+                color: {self.colors['text']};
+            }}
+        """)
+
+        self.habit_table.setAlternatingRowColors(True)
+        self.habit_table.horizontalHeader().setStretchLastSection(True)
+        self.habit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.habit_table.verticalHeader().setVisible(False)
+        self.habit_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.habit_table.setColumnCount(5)
+        self.habit_table.setHorizontalHeaderLabels(["ID", "📝 Habit", "🔁 Frequency", "🎯 Goal", "🗓️ Start Date"])
+    
+    def setup_buttons(self, button_layout):
+        button_base_style = """
+            QPushButton {{
+                background-color: {};
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }}
+            QPushButton:hover {{
+                background-color: {};
+            }}
+            QPushButton:pressed {{
+                background-color: {};
+            }}
+        """
+
+        self.add_habit_button = QPushButton("➕ Add Habit")
+        self.edit_habit_button = QPushButton("📝 Edit Habit")
+        self.remove_habit_button = QPushButton("🗑️ Remove Habit")
+
+        self.add_habit_button.setStyleSheet(button_base_style.format(self.colors['primary'], '#1976d2', '#1565c0'))
+        self.edit_habit_button.setStyleSheet(button_base_style.format(self.colors['secondary'], '#37474f', '#263238'))
+        self.remove_habit_button.setStyleSheet(button_base_style.format(self.colors['danger'], '#d32f2f', '#c62828'))
+
+        button_layout.addWidget(self.add_habit_button)
+        button_layout.addWidget(self.edit_habit_button)
+        button_layout.addWidget(self.remove_habit_button)
+        button_layout.setSpacing(12)
 
 class AddHabitDialog(QDialog):
     def __init__(self, parent=None):
@@ -265,7 +325,9 @@ class EditHabitDialog(QDialog):
             return
 
         try:
-            update_habit_by_id(self.habit_id, name, frequency, int(goal), start_date)
+            update_habit_by_id(
+                self.habit_id, name, frequency, int(goal), start_date
+            )
             QMessageBox.information(
                 self, "Success", "Habit added successfully!"
             )
