@@ -6,10 +6,8 @@ import sys
 
 if __name__ == "__main__":
     initialize_database()
-    test_insert_data()
 
     app = QApplication(sys.argv)
     window = HabitTracker()
     window.show()
     sys.exit(app.exec_())
-    

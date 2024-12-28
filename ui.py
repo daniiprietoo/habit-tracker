@@ -21,6 +21,9 @@ from PyQt5.QtGui import QFont
 from db_operations import (
     fetch_all_habits,
     insert_habit,
+    delete_habit,
+    fetch_habit_by_id,
+    update_habit_by_id,
 )
 
 
@@ -113,6 +116,7 @@ class HabitTracker(QMainWindow):
 
         self.add_habit_button.clicked.connect(self.open_add_habit_dialog)
         self.remove_habit_button.clicked.connect(self.delete_selected_habit)
+        self.edit_habit_button.clicked.connect(self.open_edit_habit_dialog)
 
         # Load Habits
         self.load_habits()
@@ -134,12 +138,23 @@ class HabitTracker(QMainWindow):
         self.load_habits()
 
     def delete_selected_habit(self):
-        """Delete the selected habit."""
         selected_row = self.habit_table.currentRow()
         if selected_row == -1:
             QMessageBox.warning(self, "Error", "No habit selected!")
             return
         habit_id = self.habit_table.item(selected_row, 0).text()
+        delete_habit(habit_id)
+        self.load_habits()
+    
+    def open_edit_habit_dialog(self):
+        selected_row = self.habit_table.currentRow()
+        if selected_row == -1:
+            QMessageBox.warning(self, "Error", "No habit selected!")
+            return
+        habit_id = self.habit_table.item(selected_row, 0).text()
+        dialog = EditHabitDialog(habit_id, self)
+        dialog.exec_()
+        self.load_habits()
 
 
 class AddHabitDialog(QDialog):
@@ -191,6 +206,66 @@ class AddHabitDialog(QDialog):
 
         try:
             insert_habit(name, frequency, int(goal), start_date)
+            QMessageBox.information(
+                self, "Success", "Habit added successfully!"
+            )
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to add habit: {e}")
+
+
+class EditHabitDialog(QDialog):
+    def __init__(self, habit_id, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Habit")
+        self.setGeometry(300, 300, 400, 300)
+        self.habit_id = habit_id
+        self.habit = fetch_habit_by_id(habit_id)
+
+        self.form_layout = QFormLayout()
+        self.setLayout(self.form_layout)
+
+        self.name_input = QLineEdit()
+        self.name_input.setText(self.habit[1])
+        self.frequency_input = QLineEdit()
+        self.frequency_input.setText(self.habit[2])
+        self.goal_input = QLineEdit()
+        self.goal_input.setText(str(self.habit[3]))
+        self.start_date_input = QLineEdit()
+        self.start_date_input.setText(self.habit[4])
+
+        self.form_layout.addRow("Habit Name:", self.name_input)
+        self.form_layout.addRow(
+            "Frequency (e.g., Daily):", self.frequency_input
+        )
+        self.form_layout.addRow("Goal (Minutes):", self.goal_input)
+        self.form_layout.addRow(
+            "Start Date (YYYY-MM-DD):", self.start_date_input
+        )
+
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.save_habit)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.cancel_button)
+
+        self.form_layout.addRow(button_layout)
+
+    def save_habit(self):
+        name = self.name_input.text()
+        frequency = self.frequency_input.text()
+        goal = self.goal_input.text()
+        start_date = self.start_date_input.text()
+
+        if not (name and frequency and goal and start_date):
+            QMessageBox.warning(self, "Error", "All fields are required!")
+            return
+
+        try:
+            update_habit_by_id(self.habit_id, name, frequency, int(goal), start_date)
             QMessageBox.information(
                 self, "Success", "Habit added successfully!"
             )
